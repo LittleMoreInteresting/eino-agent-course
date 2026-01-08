@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/cloudwego/eino/callbacks"
 	"log"
 	"os"
 
@@ -41,7 +42,24 @@ func main() {
 	// 4. 使用 Compose 进行编排
 	// NewChain 定义了输入类型为 map[string]any，输出类型为 *schema.Message
 	chain := compose.NewChain[map[string]any, *schema.Message]()
+	// 定义中间件函数，用于打印每个节点的输入输出
+	handler := callbacks.NewHandlerBuilder().
+		OnStartFn(func(ctx context.Context, info *callbacks.RunInfo, input callbacks.CallbackInput) context.Context {
+			log.Printf("[Global Start] component=%s name=%s input=%T", info.Component, info.Name, input)
+			return ctx
+		}).
+		OnEndFn(func(ctx context.Context, info *callbacks.RunInfo, output callbacks.CallbackOutput) context.Context {
+			log.Printf("[Global End] component=%s name=%s output=%T", info.Component, info.Name, output)
+			return ctx
+		}).
+		OnErrorFn(func(ctx context.Context, info *callbacks.RunInfo, err error) context.Context {
+			log.Printf("[Global Error] component=%s name=%s err=%v", info.Component, info.Name, err)
+			return ctx
+		}).
+		Build()
 
+	// Register as global callbacks (applies to all subsequent runs)
+	callbacks.AppendGlobalHandlers(handler)
 	chain.
 		AppendChatTemplate(translatePrompt).                        // 注入 Prompt
 		AppendChatModel(chatModel, compose.WithOutputKey("input")). // 注入模型，得到初稿
