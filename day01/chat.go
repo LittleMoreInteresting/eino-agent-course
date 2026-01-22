@@ -3,43 +3,54 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/joho/godotenv"
 	"log"
 	"os"
 
 	"github.com/cloudwego/eino-ext/components/model/ark"
+	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
+	"github.com/joho/godotenv"
 )
 
 func main() {
 	ctx := context.Background()
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
-	// 1. 初始化 ChatModel 组件
-	// 这里以 OpenAI 适配器为例，配置 APIKey 和模型名称
+	_ = godotenv.Load()
+	// 1. 初始化 ChatModel 组件 (以 OpenAI 为例)
+	// Eino 通过泛型保证了输入输出的类型安全
 	chatModel, err := ark.NewChatModel(ctx, &ark.ChatModelConfig{
 		APIKey: os.Getenv("LLM_API_KEY"),
 		Model:  os.Getenv("LLM_MODEL_ID"),
 	})
 	if err != nil {
-		log.Fatalf("failed to init chat model: %v", err)
+		log.Fatalf("init model failed: %v", err)
 	}
 
-	// 2. 构造消息
-	messages := []*schema.Message{
-		schema.SystemMessage("你是一名资深的 Golang 专家，负责引导开发者学习 Eino 框架。"),
-		schema.UserMessage("请用一句话介绍 Eino 的核心优势。"),
-	}
+	// 2. 创建一个 Chain
+	// 定义输入为 string (中文词), 输出为 *schema.Message
+	// Eino 的泛型语法: NewChain[InputType, OutputType]()
+	chain := compose.NewChain[string, *schema.Message]()
 
-	// 3. 调用模型生成响应
-	// Eino 统一了组件接口，所有 Model 都遵循 Generate 方法
-	response, err := chatModel.Generate(ctx, messages)
+	// 3. 编排流程
+	chain.
+		// 简单的变换：将 string 转为 Prompt (这里演示简单的闭包转换)
+		AppendLambda(compose.InvokableLambda(func(ctx context.Context, input string) ([]*schema.Message, error) {
+			message := fmt.Sprintf("请将以下内容翻译成英文 %s", input)
+			return []*schema.Message{schema.UserMessage(message)}, nil
+		})).
+		// 接入大模型
+		AppendChatModel(chatModel)
+
+	// 4. 编译 Chain
+	// Compile 阶段会检查节点连接是否合法
+	runnable, err := chain.Compile(ctx)
 	if err != nil {
-		log.Fatalf("chat model generate failed: %v", err)
+		log.Fatalf("compile chain failed: %v", err)
 	}
 
-	// 4. 打印结果
-	fmt.Printf("\n[AI]: %s\n", response.Content)
+	// 5. 运行
+	result, err := runnable.Invoke(ctx, "程序员")
+	if err != nil {
+		log.Fatalf("invoke failed: %v", err)
+	}
+	fmt.Printf("翻译结果: %v\n", result.Content)
 }
