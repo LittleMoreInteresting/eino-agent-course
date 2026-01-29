@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/cloudwego/eino-ext/components/model/ark"
+	"github.com/cloudwego/eino/callbacks"
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
@@ -24,10 +25,19 @@ func main() {
 	if err2 != nil {
 		log.Fatalf("Failed to build graph: %v", err2)
 	}
-
+	handler := callbacks.NewHandlerBuilder().
+		OnStartFn(func(ctx context.Context, info *callbacks.RunInfo, input callbacks.CallbackInput) context.Context {
+			log.Printf("Start node %s %s", info.Name, input)
+			return ctx
+		}).
+		OnErrorFn(func(ctx context.Context, info *callbacks.RunInfo, err error) context.Context {
+			log.Printf("Node %s failed: %v", info.Name, err)
+			return ctx
+		}).
+		Build()
 	// 测试：翻译意图
 	fmt.Println("测试翻译功能:")
-	res1, err := runnable.Invoke(ctx, "帮我翻译：Hello World")
+	res1, err := runnable.Invoke(ctx, "帮我翻译：Hello World", compose.WithCallbacks(handler))
 	if err != nil {
 		log.Printf("Error in translation: %v", err)
 	} else {
@@ -36,7 +46,7 @@ func main() {
 
 	// 测试：闲聊意图
 	fmt.Println("\n测试闲聊功能:")
-	res2, err := runnable.Invoke(ctx, "今天天气不错")
+	res2, err := runnable.Invoke(ctx, "今天天气不错", compose.WithCallbacks(handler))
 	if err != nil {
 		log.Printf("Error in chat: %v", err)
 	} else {

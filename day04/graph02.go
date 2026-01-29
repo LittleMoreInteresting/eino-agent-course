@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"github.com/joho/godotenv"
 	"log"
 	"os"
 	"strings"
@@ -17,6 +16,7 @@ import (
 	"github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
+	"github.com/joho/godotenv"
 )
 
 func main() {
